@@ -1,0 +1,37 @@
+{
+  "name": "Sana Pro Hacker",
+  "description": "A sophisticated conversational AI assistant named Sana, featuring vision capabilities and real-time Urdu-to-Roman-English interaction.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation",
+    "clipboard-read"
+  ],
+  "simulatedPermissions": [
+    "android.permission.QUERY_ALL_PACKAGES",
+    "android.permission.WRITE_SECURE_SETTINGS",
+    "android.permission.KILL_BACKGROUND_PROCESSES",
+    "android.permission.MANAGE_EXTERNAL_STORAGE",
+    "android.permission.READ_CONTACTS",
+    "android.permission.READ_SMS",
+    "android.permission.READ_CALL_LOG",
+    "android.permission.READ_PHONE_STATE",
+    "android.permission.CALL_PHONE",
+    "android.permission.CAMERA",
+    "android.permission.RECORD_AUDIO",
+    "android.permission.ACCESS_FINE_LOCATION",
+    "android.permission.ACCESS_BACKGROUND_LOCATION",
+    "android.permission.ACCESS_SATELLITE_FEED",
+    "android.permission.ACCESS_MEDIA_LOCATION",
+    "android.permission.BLUETOOTH",
+    "android.permission.BLUETOOTH_ADMIN",
+    "android.permission.NFC",
+    "android.permission.FLASHLIGHT",
+    "android.permission.BIND_DEVICE_ADMIN",
+    "android.permission.BIND_ACCESSIBILITY_SERVICE",
+    "android.permission.SYSTEM_ALERT_WINDOW",
+    "android.permission.ACCESS_SUPERUSER",
+    "android.permission.GET_ACCOUNTS",
+    "android.permission.BATTERY_STATS"
+  ]
+}
