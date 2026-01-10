@@ -5,8 +5,8 @@ import { encode, decode, blobToBase64 } from '../utils';
 
 // --- Configuration ---
 const SECRET_CODE = '07861';
-// Updated to the latest native audio model for best real-time performance
-const MODEL_NAME = 'gemini-2.5-flash-native-audio-preview-12-2025';
+// Switched to stable Flash model which supports Live API reliably
+const MODEL_NAME = 'gemini-2.5-flash-latest';
 
 // --- Helpers ---
 async function pcmToAudioBuffer(pcmData: Uint8Array, ctx: AudioContext, sampleRate: number = 24000, numChannels: number = 1): Promise<AudioBuffer> {
