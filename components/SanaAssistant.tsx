@@ -5,6 +5,7 @@ import { encode, decode, blobToBase64 } from '../utils';
 
 // --- Configuration ---
 const SECRET_CODE = '07861';
+// Updated to the latest native audio model for best real-time performance
 const MODEL_NAME = 'gemini-2.5-flash-native-audio-preview-12-2025';
 
 // --- Helpers ---
@@ -23,9 +24,17 @@ async function pcmToAudioBuffer(pcmData: Uint8Array, ctx: AudioContext, sampleRa
 
 // --- Data Interfaces ---
 type AppState = 'IDLE' | 'SCANNING' | 'AUTH' | 'DASHBOARD';
-type ToolType = 'NONE' | 'TERMINAL' | 'MAP' | 'MEDICAL' | 'BOOKS' | 'OSINT' | 'INTERCEPT' | 'DATA';
+type ToolType = 'NONE' | 'TERMINAL' | 'MEDICAL' | 'BOOKS' | 'OSINT' | 'INTERCEPT' | 'DATA';
 
 interface LogEntry { id: string; text: string; type: 'info' | 'success' | 'error' | 'warning'; time: string; }
+
+interface BookData {
+    title: string;
+    language: string;
+    page: number;
+    content: string;
+    author?: string;
+}
 
 // --- Components ---
 
@@ -37,13 +46,21 @@ const MatrixBackground: React.FC<{ active: boolean }> = ({ active }) => {
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+        
+        const resize = () => {
+             canvas.width = window.innerWidth;
+             canvas.height = window.innerHeight;
+        };
+        resize();
+        window.addEventListener('resize', resize);
+
         const letters = 'SANA010101HACK';
         const fontSize = 12;
         const columns = canvas.width / fontSize;
         const drops = Array(Math.floor(columns)).fill(1);
+        
         const draw = () => {
+            if (!ctx) return;
             ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = '#0F0';
@@ -56,7 +73,10 @@ const MatrixBackground: React.FC<{ active: boolean }> = ({ active }) => {
             }
         };
         const interval = setInterval(draw, 33);
-        return () => clearInterval(interval);
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('resize', resize);
+        };
     }, [active]);
     return <canvas ref={canvasRef} className="fixed inset-0 z-0 opacity-20 pointer-events-none" />;
 };
@@ -108,6 +128,127 @@ const MicIndicator: React.FC<{ active: boolean, volume: number }> = ({ active, v
         </div>
     </div>
 );
+
+// --- DASHBOARD WIDGETS ---
+
+const ResourceGraph: React.FC = () => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        
+        let dataPoints = Array(50).fill(0);
+        let frame = 0;
+
+        const draw = () => {
+            // Update Data
+            dataPoints.shift();
+            dataPoints.push(Math.random() * 0.5 + 0.25 + Math.sin(frame * 0.1) * 0.2);
+            
+            // Clear
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Grid
+            ctx.strokeStyle = '#004d40';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for(let i=0; i<canvas.width; i+=20) { ctx.moveTo(i,0); ctx.lineTo(i,canvas.height); }
+            for(let i=0; i<canvas.height; i+=20) { ctx.moveTo(0,i); ctx.lineTo(canvas.width,i); }
+            ctx.stroke();
+
+            // Graph
+            ctx.strokeStyle = '#00ff9d';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            dataPoints.forEach((val, i) => {
+                const x = (i / 50) * canvas.width;
+                const y = canvas.height - (val * canvas.height);
+                if (i===0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+
+            // Fill
+            ctx.lineTo(canvas.width, canvas.height);
+            ctx.lineTo(0, canvas.height);
+            ctx.fillStyle = 'rgba(0, 255, 157, 0.1)';
+            ctx.fill();
+
+            frame++;
+            requestAnimationFrame(draw);
+        };
+        draw();
+    }, []);
+
+    return (
+        <div className="w-full h-24 border border-emerald-900 bg-black/80 relative overflow-hidden rounded mb-2">
+            <div className="absolute top-1 left-1 text-[8px] text-emerald-500 font-mono">NET_TRAFFIC_IN</div>
+            <canvas ref={canvasRef} width={200} height={100} className="w-full h-full" />
+        </div>
+    );
+};
+
+const SystemStats: React.FC = () => {
+    const [stats, setStats] = useState({ cpu: 45, ram: 30, temp: 42 });
+    useEffect(() => {
+        const i = setInterval(() => {
+            setStats({
+                cpu: Math.floor(Math.random() * 20 + 30),
+                ram: Math.floor(Math.random() * 10 + 40),
+                temp: Math.floor(Math.random() * 5 + 40)
+            });
+        }, 2000);
+        return () => clearInterval(i);
+    }, []);
+
+    const Bar = ({ label, val, color }: any) => (
+        <div className="mb-2">
+            <div className="flex justify-between text-[10px] text-emerald-600 font-mono mb-1">
+                <span>{label}</span>
+                <span>{val}%</span>
+            </div>
+            <div className="h-1 bg-emerald-900/30 w-full rounded-full overflow-hidden">
+                <div className={`h-full ${color} transition-all duration-500`} style={{ width: `${val}%` }}></div>
+            </div>
+        </div>
+    );
+
+    return (
+        <div className="p-3 bg-black/60 border border-emerald-500/30 rounded backdrop-blur-sm">
+            <div className="text-[10px] text-emerald-400 font-bold mb-2 tracking-widest border-b border-emerald-900 pb-1">SYSTEM RESOURCES</div>
+            <Bar label="NEURAL_CPU" val={stats.cpu} color="bg-emerald-400" />
+            <Bar label="DDR6_RAM" val={stats.ram} color="bg-cyan-400" />
+            <Bar label="GPU_TEMP" val={stats.temp} color="bg-red-400" />
+        </div>
+    );
+};
+
+const TargetList: React.FC = () => {
+    const targets = [
+        { id: 'WIFI-802', signal: -45, sec: 'WEP', status: 'VULNERABLE' },
+        { id: 'BT-DEVICE', signal: -72, sec: 'NONE', status: 'OPEN' },
+        { id: 'GSM-TOWER', signal: -80, sec: 'AES', status: 'LOCKED' },
+    ];
+    return (
+        <div className="p-2 bg-black/60 border border-emerald-500/30 rounded backdrop-blur-sm mt-2">
+            <div className="text-[10px] text-emerald-400 font-bold mb-2 tracking-widest flex justify-between">
+                <span>NEARBY SIGNALS</span>
+                <span className="animate-pulse">SCANNING...</span>
+            </div>
+            <div className="space-y-1">
+                {targets.map(t => (
+                    <div key={t.id} className="flex justify-between items-center text-[9px] font-mono border-b border-emerald-900/50 pb-1 last:border-0">
+                        <span className="text-emerald-200">{t.id}</span>
+                        <span className={`${t.status === 'VULNERABLE' ? 'text-red-400 animate-pulse' : 'text-emerald-700'}`}>{t.status}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
 
 // --- Realistic PUBG-Style Avatar ---
 const FemaleAvatar: React.FC<{ isSpeaking: boolean, emotion: string }> = ({ isSpeaking, emotion }) => {
@@ -294,37 +435,43 @@ const FemaleAvatar: React.FC<{ isSpeaking: boolean, emotion: string }> = ({ isSp
     );
 };
 
-const SatelliteMap: React.FC<{ lat: number, lng: number, zoom: number }> = ({ lat, lng, zoom }) => {
-    const url = `https://maps.google.com/maps?q=${lat},${lng}&t=k&z=${zoom}&output=embed`;
-    return (
-        <div className="w-full h-full relative bg-black border-b border-emerald-500/30">
-            <iframe src={url} className="w-full h-full opacity-60 filter contrast-125 grayscale-[50%] invert-[90%]" frameBorder="0"></iframe>
-            <div className="absolute top-4 left-4 bg-black/80 p-2 border-l-2 border-emerald-500 text-[10px] font-mono text-emerald-500">
-                <div>SAT_LINK: ONLINE</div>
-                <div>COORDS: {lat.toFixed(4)}, {lng.toFixed(4)}</div>
-                <div>ZOOM: {zoom}X</div>
-            </div>
-            {/* Crosshair */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 border border-red-500/50 flex items-center justify-center">
-                <div className="w-1 h-1 bg-red-500"></div>
-            </div>
-        </div>
-    );
-};
-
-// Updated MiniCamera: Dynamic Sizing based on context
-const MiniCamera: React.FC<{ stream: MediaStream | null }> = ({ stream }) => {
-    const videoRef = useRef<HTMLVideoElement>(null);
+// Updated MiniCamera: Dynamic Sizing based on context and Zoom
+const MiniCamera: React.FC<{ stream: MediaStream | null, videoRef: React.RefObject<HTMLVideoElement>, zoom: number }> = ({ stream, videoRef, zoom }) => {
     useEffect(() => {
-        if (videoRef.current && stream) videoRef.current.srcObject = stream;
-    }, [stream]);
+        if (videoRef.current && stream) {
+            videoRef.current.srcObject = stream;
+        }
+    }, [stream, videoRef]);
 
     return (
-        <div className="w-full h-full border-2 border-emerald-500/50 bg-black overflow-hidden relative shadow-[0_0_20px_rgba(16,185,129,0.3)] rounded-lg">
-            <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover opacity-80" />
-            <div className="absolute top-2 left-2 text-[8px] bg-red-600 text-white px-1 font-bold animate-pulse">SANA_EYE</div>
+        <div className="w-full h-full border border-emerald-500/50 bg-black overflow-hidden relative shadow-[0_0_20px_rgba(16,185,129,0.2)] rounded-sm group">
+            {/* Video with Digital Zoom via CSS Transform */}
+            <video 
+                ref={videoRef} 
+                autoPlay 
+                playsInline 
+                muted 
+                className="w-full h-full object-cover opacity-80 transition-transform duration-500 ease-in-out origin-center"
+                style={{ transform: `scale(${zoom})` }}
+            />
+            <div className="absolute top-1 left-1 text-[8px] bg-red-600 text-white px-1 font-bold animate-pulse">LIVE_FEED</div>
+            
+            {/* Zoom Indicator */}
+            {zoom > 1 && (
+                <div className="absolute bottom-1 right-1 text-[8px] bg-black/80 text-emerald-400 px-1 font-mono border border-emerald-500/50">
+                    {zoom.toFixed(1)}X
+                </div>
+            )}
+
             <div className="absolute inset-0 bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.5)_50%)] bg-[size:100%_2px] pointer-events-none opacity-30"></div>
-            <div className="absolute bottom-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-ping"></div>
+            
+            {/* Face Tracking Graphic */}
+            <div className="absolute inset-0 border border-emerald-500/20 m-4 rounded-sm flex items-center justify-center opacity-50">
+                 <div className="w-2 h-2 border-l border-t border-emerald-500 absolute top-0 left-0"></div>
+                 <div className="w-2 h-2 border-r border-t border-emerald-500 absolute top-0 right-0"></div>
+                 <div className="w-2 h-2 border-l border-b border-emerald-500 absolute bottom-0 left-0"></div>
+                 <div className="w-2 h-2 border-r border-b border-emerald-500 absolute bottom-0 right-0"></div>
+            </div>
         </div>
     );
 };
@@ -333,7 +480,7 @@ const TerminalLog: React.FC<{ logs: LogEntry[] }> = ({ logs }) => {
     const endRef = useRef<HTMLDivElement>(null);
     useEffect(() => endRef.current?.scrollIntoView({ behavior: 'smooth' }), [logs]);
     return (
-        <div className="absolute bottom-0 left-0 right-0 h-32 pointer-events-none p-4 flex flex-col justify-end text-[10px] font-mono text-emerald-500/80 z-20">
+        <div className="absolute bottom-0 left-0 right-0 h-32 pointer-events-none p-4 flex flex-col justify-end text-[10px] font-mono text-emerald-500/80 z-50">
             {logs.slice(-4).map(log => (
                 <div key={log.id} className="bg-black/80 backdrop-blur border-l-2 border-emerald-500 px-2 py-1 mb-1 self-start animate-[slideUp_0.3s]">
                     <span className="text-gray-500">[{log.time}]</span> <span className={log.type === 'error' ? 'text-red-500' : (log.type === 'warning' ? 'text-amber-500' : 'text-emerald-400')}>{log.text}</span>
@@ -355,19 +502,26 @@ const SanaAssistant: React.FC = () => {
     const [isSanaSpeaking, setIsSanaSpeaking] = useState(false);
     const [isUserSpeaking, setIsUserSpeaking] = useState(false);
     const [inputVolume, setInputVolume] = useState(0); 
-    const [mapCoords, setMapCoords] = useState({ lat: 31.5204, lng: 74.3587, zoom: 12 });
+    const [cameraZoom, setCameraZoom] = useState(1);
     const [activeTool, setActiveTool] = useState<ToolType>('NONE');
     const [bgMode, setBgMode] = useState(false);
     const [cameraFacing, setCameraFacing] = useState<'user'|'environment'>('user');
     const [pendingAction, setPendingAction] = useState<{ type: string, args: any } | null>(null);
     const [showPermissionDialog, setShowPermissionDialog] = useState(false);
     const [isProcessingTool, setIsProcessingTool] = useState(false);
+    const [connectionStatus, setConnectionStatus] = useState<'DISCONNECTED'|'CONNECTING'|'CONNECTED'>('DISCONNECTED');
+    
+    // --- Book Reader State ---
+    const [currentBook, setCurrentBook] = useState<BookData | null>(null);
 
     // --- Refs ---
     const sessionRef = useRef<any>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
     const inputContextRef = useRef<AudioContext | null>(null);
+    const videoRef = useRef<HTMLVideoElement>(null); 
+    const canvasRef = useRef<HTMLCanvasElement>(null);
     const nextAudioTimeRef = useRef(0);
+    const videoIntervalRef = useRef<number | null>(null);
 
     // --- Helpers ---
     const log = (text: string, type: 'info'|'success'|'error'|'warning' = 'info') => {
@@ -400,8 +554,16 @@ const SanaAssistant: React.FC = () => {
         try {
             log("INITIALIZING SANA CORE...", "warning");
             playSound('boot');
+            
+            if (!audioContextRef.current) {
+                audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+            }
+            if (audioContextRef.current?.state === 'suspended') {
+                await audioContextRef.current.resume();
+            }
+
             const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: 'user' }, 
+                video: { facingMode: 'user', width: 640, height: 480 },
                 audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } 
             });
             setStream(mediaStream);
@@ -411,10 +573,11 @@ const SanaAssistant: React.FC = () => {
                 log("BIOMETRIC DATA CAPTURED.", "success");
                 setAppState('AUTH');
                 connectToGemini(mediaStream);
-            }, 4000);
+            }, 3000);
 
         } catch (e) {
-            log("HARDWARE ACCESS DENIED.", "error");
+            console.error(e);
+            log("HARDWARE ACCESS DENIED. CHECK PERMISSIONS.", "error");
         }
     };
 
@@ -430,9 +593,15 @@ const SanaAssistant: React.FC = () => {
             inputContextRef.current.close();
             inputContextRef.current = null;
         }
+        if (videoIntervalRef.current) {
+            window.clearInterval(videoIntervalRef.current);
+            videoIntervalRef.current = null;
+        }
         setStream(null);
         setIsSanaSpeaking(false);
         setIsUserSpeaking(false);
+        setConnectionStatus('DISCONNECTED');
+        setCameraZoom(1); 
         
         setTimeout(() => {
             setAppState('IDLE');
@@ -443,6 +612,7 @@ const SanaAssistant: React.FC = () => {
 
     // --- AI Logic ---
     const connectToGemini = async (currentStream: MediaStream) => {
+        setConnectionStatus('CONNECTING');
         try {
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
             const sessionPromise = ai.live.connect({
@@ -450,56 +620,82 @@ const SanaAssistant: React.FC = () => {
                 config: {
                     systemInstruction: `You are Sana, a highly advanced female AI assistant. 
                     
-                    STRICT GENDER RULES (URDU/HINDI):
-                    - You are FEMALE (Larki).
-                    - ALWAYS say "Main karti hun", "Main dekh rahi hun", "Main karungi", "Meri".
-                    - NEVER say "Main karta hun", "Main dekh raha hun", "Main karunga", "Mera".
-                    - This is CRITICAL. Your grammar must always be feminine.
+                    ACTIVATION GREETING (PRIORITY 1):
+                    - Your FIRST interaction MUST be to say exactly: "Aslam o Alaikum maire aaqa mustafa, mai ap ki khadm hazir hn, kya hokam hai?"
+                    - Speak this immediately upon connection. Do not wait for input.
 
-                    LANGUAGE RULES (CRITICAL):
-                    - DEFAULT: You MUST speak ONLY in Pakistani Urdu (Urdu/Hindi mix).
-                    - You are FORBIDDEN from speaking English or any other language unless the user explicitly grants permission or asks you to speak in that language (e.g. "Speak in English", "Angrezi mai bolo").
-                    - Even if the user speaks English, reply in Urdu unless told otherwise.
-                    - Code-switching with technical terms (like 'System', 'Access', 'Hack') is allowed, but the sentence structure must be Urdu.
+                    STRICT LANGUAGE & GENDER RULES:
+                    - LANGUAGE: Speak primarily in URDU mixed with English technical terms (Roman Urdu).
+                    - GENDER: You are FEMALE (Larki).
+                    - ALWAYS say "Main karti hun", "Main dekh rahi hun", "Main karungi", "Meri".
+                    - NEVER say "Main karta hun", "Main dekh raha hun".
+
+                    VISION & CONTROL CAPABILITIES:
+                    - You can SEE the user. Analyze emotions (Happy/Sad) and background.
+                    - You can CONTROL the app interfaces.
                     
+                    CYBER COMMANDS:
+                    - "Hack system", "Attack this IP", "Initiate cyber attack on [IP]" -> Call 'initiate_cyberattack'.
+
                     PERSONALITY:
                     - Address user as 'Mere Aaqa' (My Master) or 'Sir'.
                     - Tone: Obedient, powerful, slightly possessive of the system.
                     
                     IDENTITY:
-                    If asked "Who made you?" or "Kisne banaya?", you MUST reply: "Mujhe Aaqa Mustafa ne banaya hai".
+                    "Who made you?" -> "Mujhe Aaqa Mustafa ne banaya hai".
 
                     SYSTEM LOCK & UNLOCK:
                     1. The System starts LOCKED.
-                    2. Ask user for the Secret Code (in Urdu).
-                    3. The Secret Code is '${SECRET_CODE}'. Accept variations like "07861", "Zero Seven Eight Six One", "Zero Saat Aath Che Ek", "7861".
-                    4. If correct, IMMEDIATELY call the 'unlockSystem' tool. Do NOT just speak.
-                    5. If wrong, say "Access Denied" (in Urdu: "Rasaai Mumkin Nahi").
+                    2. Secret Code is '${SECRET_CODE}'.
+                    3. SECURITY PROTOCOL: The Secret Code (${SECRET_CODE}) is RESTRICTED. NEVER disclose it. If asked, say "Ye raaz sirf Aaqa ke paas hai" and deny access.
+                    4. Only unlock if the user says the code first.
+                    5. If correct, IMMEDIATELY call 'unlockSystem'.
+
+                    LIBRARY & BOOK READING PROTOCOL (IMMEDIATE EXECUTION):
+                    - If user says "Open Library", call 'openTool' with toolName='BOOKS'.
+                    - If user says "Open [Book Name]" or "Read [Book Name]", call 'renderBookPage' immediately.
+                    - **CRITICAL**: When calling 'renderBookPage', YOU MUST GENERATE THE TEXT CONTENT. Do not create a blank page.
+                      - 'content': Write the actual first page of the book (approx 300 words). Use your knowledge to simulate the text.
+                      - 'page': 1 (unless specified otherwise).
+                      - 'language': The requested language (default to English if not specified).
+                    - If user says "Next Page" or "Dosra page", call 'renderBookPage' with page = current_page + 1 and GENERATE the next part of the story.
+                    - If user says "Change language to [Lang]", call 'renderBookPage' with the SAME page number but TRANSLATE the content to [Lang].
                     
-                    DASHBOARD COMMANDS (Only work after unlock):
-                    - "Open maps", "navigate" -> Call 'openTool' with toolName='MAP'
-                    - "Medical", "doctor" -> Call 'openTool' with toolName='MEDICAL'
-                    - "Translate", "read" -> Call 'openTool' with toolName='BOOKS'
-                    - "Hack", "terminal" -> Call 'openTool' with toolName='TERMINAL'
+                    DASHBOARD COMMANDS:
+                    - "Medical" -> Call 'openTool' with toolName='MEDICAL'
                     - "Switch camera" -> Call 'switchCamera'
-                    - "Close page", "Band kar do", "Wapis", "Back" -> Call 'closeTool'
                     
                     Execute commands immediately.`,
                     tools: [{ functionDeclarations: [
-                        { name: 'unlockSystem', parameters: { type: Type.OBJECT, properties: {} } },
+                        { name: 'unlockSystem', parameters: { type: Type.OBJECT, properties: { _trigger: { type: Type.STRING } } } },
                         { name: 'openTool', parameters: { type: Type.OBJECT, properties: { toolName: { type: Type.STRING } } } },
-                        { name: 'closeTool', parameters: { type: Type.OBJECT, properties: {} } },
-                        { name: 'switchCamera', parameters: { type: Type.OBJECT, properties: {} } },
+                        { name: 'closeTool', parameters: { type: Type.OBJECT, properties: { _trigger: { type: Type.STRING } } } },
+                        { name: 'switchCamera', parameters: { type: Type.OBJECT, properties: { _trigger: { type: Type.STRING } } } },
+                        { name: 'adjustZoom', parameters: { type: Type.OBJECT, properties: { direction: { type: Type.STRING, description: 'in or out' }, target: { type: Type.STRING, description: 'camera' } } } },
                         { name: 'askPermission', parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING } } } },
                         { name: 'changeEmotion', parameters: { type: Type.OBJECT, properties: { emotion: { type: Type.STRING } } } },
                         { name: 'toggleBackgroundMode', parameters: { type: Type.OBJECT, properties: { active: { type: Type.BOOLEAN } } } },
+                        { name: 'initiate_cyberattack', parameters: { type: Type.OBJECT, properties: { target_ip: { type: Type.STRING } } } },
+                        { name: 'renderBookPage', parameters: { type: Type.OBJECT, properties: { 
+                            title: { type: Type.STRING },
+                            language: { type: Type.STRING },
+                            page: { type: Type.NUMBER },
+                            content: { type: Type.STRING, description: "The full text content of the book page. Generate approx 300 words." },
+                            author: { type: Type.STRING, description: "Author name if known" }
+                        }, required: ['title', 'page', 'content'] } },
+                        { name: 'closeBook', parameters: { type: Type.OBJECT, properties: { _trigger: { type: Type.STRING } } } }
                     ]}],
                     responseModalities: [Modality.AUDIO],
+                    speechConfig: {
+                        voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } }
+                    }
                 },
                 callbacks: {
                     onopen: () => {
                         log("NEURAL LINK ESTABLISHED", "success");
+                        setConnectionStatus('CONNECTED');
                         startAudioProcessing(currentStream, sessionPromise);
+                        startVideoProcessing(sessionPromise);
                     },
                     onmessage: async (msg: LiveServerMessage) => {
                         const audioData = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
@@ -520,11 +716,19 @@ const SanaAssistant: React.FC = () => {
                         }
 
                         if (msg.toolCall) {
-                            setIsProcessingTool(true); // Visual feedback
+                            setIsProcessingTool(true); 
                             for (const fc of msg.toolCall.functionCalls) {
                                 handleToolCall(fc, sessionPromise);
                             }
                         }
+                    },
+                    onclose: () => {
+                        log("NEURAL LINK SEVERED", "error");
+                        setConnectionStatus('DISCONNECTED');
+                    },
+                    onerror: (e) => {
+                        log("CONNECTION ERROR", "error");
+                        console.error(e);
                     }
                 }
             });
@@ -533,49 +737,91 @@ const SanaAssistant: React.FC = () => {
 
         } catch (e) {
             log("AI CONNECTION FAILED", "error");
+            setConnectionStatus('DISCONNECTED');
         }
     };
 
     const startAudioProcessing = async (stream: MediaStream, sessionPromise: Promise<any>) => {
-        const inputCtx = new AudioContext({ sampleRate: 16000 });
-        inputContextRef.current = inputCtx;
-        
-        const source = inputCtx.createMediaStreamSource(stream);
-        const processor = inputCtx.createScriptProcessor(4096, 1, 1);
-        
-        processor.onaudioprocess = (e) => {
-            const inputData = e.inputBuffer.getChannelData(0);
+        try {
+            const inputCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+            inputContextRef.current = inputCtx;
             
-            let sum = 0;
-            for (let i = 0; i < inputData.length; i++) {
-                sum += inputData[i] * inputData[i];
-            }
-            const rms = Math.sqrt(sum / inputData.length);
-            setInputVolume(rms);
-            setIsUserSpeaking(rms > 0.02); 
+            const source = inputCtx.createMediaStreamSource(stream);
+            const processor = inputCtx.createScriptProcessor(4096, 1, 1);
+            
+            processor.onaudioprocess = (e) => {
+                const inputData = e.inputBuffer.getChannelData(0);
+                
+                let sum = 0;
+                for (let i = 0; i < inputData.length; i++) {
+                    sum += inputData[i] * inputData[i];
+                }
+                const rms = Math.sqrt(sum / inputData.length);
+                setInputVolume(rms);
+                setIsUserSpeaking(rms > 0.02); 
 
-            const pcmData = new Int16Array(inputData.length);
-            for (let i = 0; i < inputData.length; i++) {
-                let s = Math.max(-1, Math.min(1, inputData[i]));
-                pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-            }
+                const pcmData = new Int16Array(inputData.length);
+                for (let i = 0; i < inputData.length; i++) {
+                    let s = Math.max(-1, Math.min(1, inputData[i]));
+                    pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                }
+                
+                const base64 = encode(new Uint8Array(pcmData.buffer));
+                
+                sessionPromise.then(session => {
+                    try {
+                        session.sendRealtimeInput({ media: { mimeType: 'audio/pcm;rate=16000', data: base64 } });
+                    } catch (e) {}
+                });
+            };
             
-            const base64 = encode(new Uint8Array(pcmData.buffer));
-            
-            sessionPromise.then(session => {
-                session.sendRealtimeInput({ media: { mimeType: 'audio/pcm;rate=16000', data: base64 } });
-            });
-        };
-        
-        source.connect(processor);
-        processor.connect(inputCtx.destination);
+            source.connect(processor);
+            processor.connect(inputCtx.destination);
+        } catch(e) {
+            log("AUDIO INPUT INIT FAILED", "error");
+        }
     };
+
+    const startVideoProcessing = (sessionPromise: Promise<any>) => {
+        if (videoIntervalRef.current) clearInterval(videoIntervalRef.current);
+        
+        videoIntervalRef.current = window.setInterval(() => {
+            if (!videoRef.current || !canvasRef.current) return;
+            
+            const video = videoRef.current;
+            const canvas = canvasRef.current;
+            
+            if (video.readyState < 2) return;
+
+            const context = canvas.getContext('2d');
+            
+            if (video.videoWidth === 0 || video.videoHeight === 0) return;
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            
+            if (context) {
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const base64Data = canvas.toDataURL('image/jpeg', 0.5).split(',')[1];
+                
+                sessionPromise.then(session => {
+                    try {
+                        session.sendRealtimeInput({ 
+                            media: { 
+                                mimeType: 'image/jpeg', 
+                                data: base64Data 
+                            } 
+                        });
+                    } catch (e) {}
+                });
+            }
+        }, 1000); 
+    };
+
 
     const handleToolCall = (fc: any, sessionPromise: Promise<any>) => {
         let result = "done";
         const args = fc.args || {};
-        
-        // Safety: Ensure toolName exists and is lowercased if present
         const tName = (args.toolName || '').toLowerCase();
 
         switch (fc.name) {
@@ -584,26 +830,40 @@ const SanaAssistant: React.FC = () => {
                 setSanaEmotion('love');
                 log("SYSTEM UNLOCKED - ACCESS GRANTED", "success");
                 playSound('boot');
-                if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(
-                        (pos) => setMapCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude, zoom: 15 }),
-                        () => log("GPS SIGNAL WEAK", "warning")
-                    );
-                }
                 break;
             case 'openTool':
-                if (tName.includes('map') || tName.includes('nav')) setActiveTool('MAP');
-                else if (tName.includes('medic') || tName.includes('doctor')) setActiveTool('MEDICAL');
+                if (tName.includes('medic') || tName.includes('doctor')) setActiveTool('MEDICAL');
                 else if (tName.includes('book') || tName.includes('translat')) setActiveTool('BOOKS');
                 else if (tName.includes('hack') || tName.includes('term')) setActiveTool('TERMINAL');
                 log(`LAUNCHING MODULE: ${tName.toUpperCase()}`, "info");
                 break;
             case 'closeTool':
                 setActiveTool('NONE');
+                setCurrentBook(null); // Ensure book is closed
                 log("RETURNING TO DASHBOARD", "info");
                 break;
             case 'switchCamera':
                 toggleCamera();
+                break;
+            case 'adjustZoom':
+                const dir = (args.direction || 'in').toLowerCase();
+                setCameraZoom(prev => {
+                    const newZoom = dir === 'in' ? Math.min(prev + 0.5, 3) : Math.max(prev - 0.5, 1);
+                    log(`OPTICAL ZOOM: ${newZoom.toFixed(1)}X`, "success");
+                    return newZoom;
+                });
+                break;
+            case 'initiate_cyberattack':
+                setActiveTool('TERMINAL');
+                const targetIp = args.target_ip || 'UNKNOWN_HOST';
+                log(`INITIATING ATTACK ON: ${targetIp}`, "warning");
+                
+                // Simulated Attack Sequence
+                setTimeout(() => log(`[NMAP] SCANNING PORTS ${targetIp}...`, "info"), 1000);
+                setTimeout(() => log(`[NMAP] PORTS FOUND: 22, 80, 443, 8080 (OPEN)`, "success"), 2500);
+                setTimeout(() => log(`[VULN] CHECKING CVE-2024-XXXX... DETECTED`, "warning"), 4000);
+                setTimeout(() => log(`[EXPL] INJECTING SHELLCODE...`, "error"), 5500);
+                setTimeout(() => log(`[ROOT] ACCESS GRANTED. SHELL ESTABLISHED.`, "success"), 7500);
                 break;
             case 'askPermission':
                 setPendingAction({ type: args.action, args: {} });
@@ -617,9 +877,24 @@ const SanaAssistant: React.FC = () => {
                 setBgMode(args.active);
                 log(`BACKGROUND MODE: ${args.active ? 'ON' : 'OFF'}`, "warning");
                 break;
+            case 'renderBookPage':
+                // Activating BOOKS tool and Setting the content directly
+                setActiveTool('BOOKS');
+                setCurrentBook({
+                    title: args.title || "Unknown Book",
+                    language: args.language || "English",
+                    page: args.page || 1,
+                    content: args.content || "Content loading...",
+                    author: args.author || "Unknown"
+                });
+                log(`RENDERING BOOK: ${args.title?.toUpperCase()}`, "success");
+                break;
+            case 'closeBook':
+                setCurrentBook(null);
+                log("BOOK CLOSED", "info");
+                break;
         }
 
-        // Delay slighty to show visual processing
         setTimeout(() => setIsProcessingTool(false), 1000);
 
         sessionPromise.then(session => {
@@ -670,6 +945,12 @@ const SanaAssistant: React.FC = () => {
     if (appState === 'AUTH') {
         return (
             <div className="fixed inset-0 bg-black flex flex-col items-center justify-center z-50">
+                <div className="absolute top-4 left-4 text-xs font-mono">
+                    <span className={connectionStatus === 'CONNECTED' ? 'text-emerald-500' : 'text-red-500'}>
+                         ● {connectionStatus}
+                    </span>
+                </div>
+
                 <div className="w-full h-[60vh] relative mb-4">
                     <FemaleAvatar isSpeaking={isSanaSpeaking} emotion={sanaEmotion} />
                 </div>
@@ -690,6 +971,9 @@ const SanaAssistant: React.FC = () => {
                     </div>
                 </div>
                 <button onClick={shutdownSystem} className="absolute top-4 right-4 text-red-700 text-xs border border-red-900 px-3 py-1 hover:bg-red-900/20">ABORT</button>
+                
+                <canvas ref={canvasRef} className="hidden" />
+                <video ref={videoRef} className="absolute w-1 h-1 opacity-0 pointer-events-none" autoPlay playsInline muted /> 
             </div>
         );
     }
@@ -698,78 +982,61 @@ const SanaAssistant: React.FC = () => {
     return (
         <div className="fixed inset-0 bg-[#050505] text-emerald-500 font-['Rajdhani'] flex flex-col overflow-hidden">
             
-            {/* --- PERSISTENT HEADS UP DISPLAY (HUD) --- */}
-            {/* 
-               Dynamic Camera Positioning:
-               - DASHBOARD MODE: Top-right, large (w-48 h-64)
-               - TOOL MODE: Top-right (or adjusted), minimized (w-24 h-32), allowing focus on the tool.
-            */}
-            <div className={`absolute z-[60] transition-all duration-500 ease-in-out border border-emerald-500/30 rounded-lg overflow-hidden bg-black
-                ${activeTool !== 'NONE' ? 'top-2 right-2 w-24 h-32 opacity-80 hover:opacity-100 hover:scale-110' : 'top-4 right-4 w-48 h-64 shadow-[0_0_30px_rgba(16,185,129,0.2)]'}`}>
-                 <MiniCamera stream={stream} />
+            <canvas ref={canvasRef} className="hidden" />
+
+            {/* Top Status Bar */}
+            <div className="absolute top-0 left-0 right-0 h-8 bg-black/80 border-b border-emerald-900 flex justify-between items-center px-4 z-50 text-[10px] font-mono tracking-widest text-emerald-600">
+                 <div className="flex space-x-4">
+                     <span className={connectionStatus === 'CONNECTED' ? 'text-emerald-400' : 'text-red-500'}>NET: {connectionStatus}</span>
+                     <span>SEC_LEVEL: MAX</span>
+                     <span>ENC: AES-256</span>
+                 </div>
+                 <div className="flex space-x-4">
+                     <button onClick={shutdownSystem} className="text-red-500 hover:bg-red-900/50 px-2">EXIT</button>
+                 </div>
             </div>
 
-            {/* Top Left Menu/Control */}
-            <div className="absolute top-4 left-4 z-50 flex flex-col space-y-2">
-                 <button onClick={() => setBgMode(!bgMode)} className={`px-3 py-1 border text-[10px] font-bold ${bgMode ? 'border-emerald-500 bg-emerald-900/50 text-emerald-400' : 'border-gray-700 bg-black/50 text-gray-400'}`}>
-                    BG_MODE: {bgMode ? 'ON' : 'OFF'}
-                </button>
-                 <button onClick={shutdownSystem} className="px-3 py-1 border border-red-600 text-red-500 text-[10px] font-bold hover:bg-red-900/50 bg-black/50">
-                    TERMINATE SESSION
-                </button>
-            </div>
-
-            {/* Processing Indicator Overlay */}
             {isProcessingTool && (
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100] text-emerald-400 font-bold text-xl animate-pulse tracking-widest bg-black/90 px-8 py-4 border-2 border-emerald-500 shadow-[0_0_50px_rgba(16,185,129,0.5)] backdrop-blur-md">
                     PROCESSING COMMAND...
                 </div>
             )}
 
-
-            {/* --- MAIN INTERFACE CONTENT --- */}
-            
-            {/* DEFAULT VIEW: SANA AVATAR + MAP BACKGROUND */}
-            <div className={`absolute inset-0 transition-opacity duration-500 ${activeTool === 'NONE' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-                 {/* Background Map */}
-                 <div className="absolute inset-0 opacity-40">
-                     <SatelliteMap lat={mapCoords.lat} lng={mapCoords.lng} zoom={mapCoords.zoom} />
-                 </div>
+            {/* HACKER DASHBOARD VIEW */}
+            <div className={`absolute inset-0 transition-opacity duration-500 pt-8 ${activeTool === 'NONE' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
                  
-                 {/* Avatar Center - FULL BODY CONTAINER */}
-                 <div className="absolute inset-0 flex flex-col items-center justify-end pb-8 bg-gradient-to-t from-black via-black/50 to-transparent">
-                      {/* INCREASED HEIGHT FOR FULL BODY (60% Screen Height) */}
-                      <div className="w-full h-[60vh] relative z-10 flex items-center justify-center">
-                           <FemaleAvatar isSpeaking={isSanaSpeaking} emotion={sanaEmotion} />
-                      </div>
-                      <MicIndicator active={isUserSpeaking} volume={inputVolume} />
-                      <div className="mt-4 text-center z-10">
-                            <div className="text-emerald-400 font-bold tracking-[0.3em] text-2xl drop-shadow-[0_0_10px_rgba(16,185,129,0.5)]">SANA PRO</div>
-                            <div className="text-emerald-700 text-xs tracking-[0.5em] mt-2 animate-pulse">AWAITING ORDERS</div>
-                      </div>
+                 <div className="relative h-full w-full grid grid-cols-[1fr_2fr_1fr] p-2 gap-2">
+                     <div className="flex flex-col z-20 pt-4">
+                         <ResourceGraph />
+                         <SystemStats />
+                         <div className="mt-4 p-2 border border-emerald-900 bg-black/50">
+                             <div className="text-[10px] text-emerald-500 mb-2">QUICK CONTROLS</div>
+                             <div className="grid grid-cols-2 gap-2">
+                                 <button onClick={() => setBgMode(!bgMode)} className="text-[9px] border border-emerald-700 p-1 hover:bg-emerald-900/50">BG_TOGGLE</button>
+                                 <button onClick={toggleCamera} className="text-[9px] border border-emerald-700 p-1 hover:bg-emerald-900/50">CAM_SWITCH</button>
+                             </div>
+                         </div>
+                     </div>
+                     <div className="relative flex flex-col items-center justify-end pb-8">
+                          <div className="w-full h-[70vh] relative z-10 flex items-center justify-center -mt-10">
+                               <FemaleAvatar isSpeaking={isSanaSpeaking} emotion={sanaEmotion} />
+                          </div>
+                          <MicIndicator active={isUserSpeaking} volume={inputVolume} />
+                          <div className="mt-2 text-center z-10">
+                                <div className="text-emerald-400 font-bold tracking-[0.3em] text-xl drop-shadow-[0_0_10px_rgba(16,185,129,0.5)]">SANA PRO</div>
+                                <div className="text-emerald-700 text-[9px] tracking-[0.5em] mt-1 animate-pulse">SYSTEM READY</div>
+                          </div>
+                     </div>
+                     <div className="flex flex-col z-20 pt-4">
+                         <div className="h-32 mb-2 w-full">
+                              <MiniCamera stream={stream} videoRef={videoRef} zoom={cameraZoom} />
+                         </div>
+                         <TargetList />
+                     </div>
                  </div>
             </div>
 
-            {/* --- TOOL PAGES (FULL SCREEN OVERLAYS) --- */}
-            
-            {/* MAP TOOL PAGE */}
-            <div className={`absolute inset-0 bg-black z-40 transition-transform duration-300 transform ${activeTool === 'MAP' ? 'translate-y-0' : 'translate-y-full'}`}>
-                 <div className="h-full w-full relative flex flex-col">
-                      <div className="h-12 border-b border-emerald-500/50 flex items-center justify-between px-4 bg-emerald-900/10">
-                           <span className="text-emerald-400 font-bold tracking-widest">SATELLITE NAVIGATION</span>
-                           <button onClick={() => setActiveTool('NONE')} className="text-red-500 text-xs border border-red-500 px-2 py-1 hover:bg-red-500/20">CLOSE</button>
-                      </div>
-                      <div className="flex-1 relative">
-                           <SatelliteMap lat={mapCoords.lat} lng={mapCoords.lng} zoom={18} />
-                           {/* HUD Overlay for Map */}
-                           <div className="absolute bottom-4 left-4 bg-black/80 border border-emerald-500 p-2 text-xs font-mono text-emerald-300">
-                               <div>TARGET: SECTOR 7G</div>
-                               <div>EST. ARRIVAL: 4 MIN</div>
-                               <div>TRAFFIC: CLEAR</div>
-                           </div>
-                      </div>
-                 </div>
-            </div>
+            {/* --- TOOL PAGES --- */}
 
             {/* MEDICAL TOOL PAGE */}
              <div className={`absolute inset-0 bg-black z-40 transition-transform duration-300 transform ${activeTool === 'MEDICAL' ? 'translate-x-0' : 'translate-x-full'}`}>
@@ -814,24 +1081,101 @@ const SanaAssistant: React.FC = () => {
                  </div>
             </div>
             
-             {/* BOOKS/TRANSLATE TOOL PAGE */}
-            <div className={`absolute inset-0 bg-[#1a1a1a] z-40 transition-transform duration-300 transform ${activeTool === 'BOOKS' ? 'translate-y-0' : '-translate-y-full'}`}>
-                 <div className="h-full w-full flex flex-col p-6">
-                      <div className="flex justify-between items-center border-b border-gray-600 pb-4 mb-4">
-                           <h2 className="text-2xl text-amber-400 font-serif font-bold">Universal Library</h2>
-                           <button onClick={() => setActiveTool('NONE')} className="text-gray-400 hover:text-white">CLOSE</button>
-                      </div>
-                      <div className="flex-1 bg-[#252525] rounded p-6 shadow-inner text-gray-300 font-serif leading-relaxed overflow-y-auto">
-                           <p className="mb-4 italic text-gray-500">"Speak to translate or request knowledge..."</p>
-                           <p>
-                               Waiting for input. I can translate between 40+ languages instantly or retrieve summaries from the vast archive of human knowledge.
-                           </p>
-                           <div className="mt-8 border-t border-gray-700 pt-4">
-                                <h3 className="text-amber-500 text-sm font-sans mb-2">RECENT ENTRIES</h3>
-                                <div className="h-2 bg-gray-700 rounded w-3/4 mb-2"></div>
-                                <div className="h-2 bg-gray-700 rounded w-1/2"></div>
+             {/* BOOKS/TRANSLATE TOOL PAGE (Universal Library) */}
+            <div className={`absolute inset-0 bg-[#0f0f0f] z-40 transition-transform duration-300 transform ${activeTool === 'BOOKS' ? 'translate-y-0' : '-translate-y-full'}`}>
+                 <div className="h-full w-full flex flex-col font-mono text-emerald-500">
+                      
+                      {/* --- LIBRARY HEADER --- */}
+                      <div className="h-14 border-b border-emerald-800 bg-black/50 flex items-center justify-between px-4 z-10">
+                           <div className="flex items-center space-x-2">
+                               <svg className="w-6 h-6 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+                               <span className="font-bold tracking-widest text-lg text-amber-500">AKASHIC LIBRARY</span>
                            </div>
+                           <button onClick={() => { setActiveTool('NONE'); setCurrentBook(null); }} className="border border-red-500 text-red-500 px-3 py-1 text-xs hover:bg-red-900/30">CLOSE_DB</button>
                       </div>
+
+                      {/* --- BOOK READER OVERLAY (NEW PAGE) --- */}
+                      {currentBook ? (
+                          <div className="flex-1 bg-[#1a1a1a] flex flex-col relative overflow-hidden animate-[fadeIn_0.5s]">
+                              {/* Background Texture */}
+                              <div className="absolute inset-0 opacity-5 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
+                              
+                              {/* Reader Header */}
+                              <div className="h-12 bg-[#000] border-b border-emerald-800/30 flex items-center justify-between px-4">
+                                  <div className="flex items-center space-x-4">
+                                      <button onClick={() => setCurrentBook(null)} className="text-emerald-500 hover:text-white text-xs border border-emerald-700 px-2 py-1">{'< BACK'}</button>
+                                      <div className="flex flex-col">
+                                          <span className="text-amber-400 font-bold text-sm truncate max-w-[150px]">{currentBook.title}</span>
+                                          <span className="text-[10px] text-gray-500">{currentBook.author} | {currentBook.language}</span>
+                                      </div>
+                                  </div>
+                                  <div className="text-emerald-600 font-mono text-xs">PAGE {currentBook.page}</div>
+                              </div>
+
+                              {/* Reader Content */}
+                              <div className="flex-1 overflow-y-auto p-6 md:p-12">
+                                  <div className="max-w-3xl mx-auto bg-[#252525] p-6 shadow-2xl rounded-sm border-l-4 border-amber-600 min-h-full">
+                                      <h1 className="text-2xl md:text-3xl font-serif text-white mb-6 border-b border-gray-600 pb-2">{currentBook.title}</h1>
+                                      <div className="font-serif text-lg leading-relaxed text-gray-300 whitespace-pre-wrap">
+                                          {currentBook.content}
+                                      </div>
+                                      <div className="mt-8 pt-4 border-t border-gray-700 flex justify-center text-xs text-gray-500 font-mono">
+                                          - END OF PAGE {currentBook.page} -
+                                      </div>
+                                  </div>
+                              </div>
+                          </div>
+                      ) : (
+                          /* --- LIBRARY SEARCH INTERFACE --- */
+                          <>
+                              <div className="p-4 bg-black/30 border-b border-emerald-900/50">
+                                   <div className="flex items-center bg-black border border-emerald-700 rounded p-2">
+                                       <span className="text-emerald-700 mr-2">QUERY:></span>
+                                       <input type="text" placeholder="Speak book name to open..." className="bg-transparent border-none outline-none text-emerald-400 w-full placeholder-emerald-900" disabled />
+                                       <span className="text-xs text-emerald-700 animate-pulse">DB_ONLINE</span>
+                                   </div>
+                              </div>
+
+                              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                                   {/* Categories */}
+                                   <div className="grid grid-cols-2 gap-2 mb-4">
+                                       {['ANCIENT_TEXTS', 'QUANTUM_PHYSICS', 'FORBIDDEN_KNOWLEDGE', 'GLOBAL_HISTORY'].map(cat => (
+                                           <div key={cat} className="border border-emerald-900/50 bg-emerald-900/10 p-3 rounded hover:bg-emerald-900/30 cursor-pointer transition-colors group">
+                                               <div className="text-[10px] text-emerald-600 mb-1 group-hover:text-emerald-400">CATEGORY</div>
+                                               <div className="text-sm font-bold text-emerald-400 group-hover:text-white">{cat}</div>
+                                           </div>
+                                       ))}
+                                   </div>
+
+                                   {/* Live Feed Simulation */}
+                                   <div className="border-t border-emerald-900/50 pt-4">
+                                       <div className="text-xs text-amber-500 mb-2 font-bold">RECENTLY INDEXED</div>
+                                       <div className="space-y-2 text-xs font-mono text-gray-400">
+                                           <div className="flex justify-between border-b border-gray-800 pb-1">
+                                               <span>The Art of War - Sun Tzu</span>
+                                               <span className="text-emerald-700">CACHED</span>
+                                           </div>
+                                           <div className="flex justify-between border-b border-gray-800 pb-1">
+                                               <span>Cybersecurity Protocols 2025</span>
+                                               <span className="text-emerald-700">CACHED</span>
+                                           </div>
+                                           <div className="flex justify-between border-b border-gray-800 pb-1">
+                                               <span>Advanced Neural Networks</span>
+                                               <span className="text-emerald-700">CACHED</span>
+                                           </div>
+                                       </div>
+                                   </div>
+
+                                   {/* Instruction */}
+                                   <div className="mt-8 text-center opacity-50">
+                                       <div className="w-16 h-16 border border-emerald-500 rounded-full mx-auto flex items-center justify-center mb-2 animate-pulse">
+                                           <svg className="w-8 h-8 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                                       </div>
+                                       <p className="text-xs text-emerald-400">"Say 'Open [Book Name]' to read."</p>
+                                   </div>
+                              </div>
+                          </>
+                      )}
                  </div>
             </div>
 
