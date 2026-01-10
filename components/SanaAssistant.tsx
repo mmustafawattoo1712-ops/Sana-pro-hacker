@@ -665,12 +665,17 @@ const SanaAssistant: React.FC = () => {
                     - "Medical" -> Call 'openTool' with toolName='MEDICAL'
                     - "Switch camera" -> Call 'switchCamera'
                     
+                    IMPORTANT CLOSING COMMANDS:
+                    - If user says "Close Library", "Library band karo", "Wapis jao", "Exit", "Close tool" -> **YOU MUST CALL 'closeTool'**.
+                    - If user says "Close Book", "Kitab band karo", "Book band karo" -> **YOU MUST CALL 'closeBook'**.
+                    - **DO NOT** just say "Okay I closed it" without calling the function. The function is required to update the screen.
+
                     Execute commands immediately.`,
                     tools: [{ functionDeclarations: [
-                        { name: 'unlockSystem', parameters: { type: Type.OBJECT, properties: { _trigger: { type: Type.STRING } } } },
+                        { name: 'unlockSystem', parameters: { type: Type.OBJECT, properties: { code: { type: Type.STRING } } } },
                         { name: 'openTool', parameters: { type: Type.OBJECT, properties: { toolName: { type: Type.STRING } } } },
-                        { name: 'closeTool', parameters: { type: Type.OBJECT, properties: { _trigger: { type: Type.STRING } } } },
-                        { name: 'switchCamera', parameters: { type: Type.OBJECT, properties: { _trigger: { type: Type.STRING } } } },
+                        { name: 'closeTool', parameters: { type: Type.OBJECT, properties: { reason: { type: Type.STRING, description: "Reason for closing, e.g. user_request" } } } },
+                        { name: 'switchCamera', parameters: { type: Type.OBJECT, properties: { mode: { type: Type.STRING } } } },
                         { name: 'adjustZoom', parameters: { type: Type.OBJECT, properties: { direction: { type: Type.STRING, description: 'in or out' }, target: { type: Type.STRING, description: 'camera' } } } },
                         { name: 'askPermission', parameters: { type: Type.OBJECT, properties: { action: { type: Type.STRING } } } },
                         { name: 'changeEmotion', parameters: { type: Type.OBJECT, properties: { emotion: { type: Type.STRING } } } },
@@ -683,7 +688,7 @@ const SanaAssistant: React.FC = () => {
                             content: { type: Type.STRING, description: "The full text content of the book page. Generate approx 300 words." },
                             author: { type: Type.STRING, description: "Author name if known" }
                         }, required: ['title', 'page', 'content'] } },
-                        { name: 'closeBook', parameters: { type: Type.OBJECT, properties: { _trigger: { type: Type.STRING } } } }
+                        { name: 'closeBook', parameters: { type: Type.OBJECT, properties: { reason: { type: Type.STRING } } } }
                     ]}],
                     responseModalities: [Modality.AUDIO],
                     speechConfig: {
